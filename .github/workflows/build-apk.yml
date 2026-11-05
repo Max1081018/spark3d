@@ -27,10 +27,13 @@ jobs:
           mkdir -p out
           javac -encoding UTF-8 -d out \
             $(find app/src/main/java/dev/spark3d/engine -name '*.java') \
-            verify/EngineCheck.java
+            app/src/main/java/dev/spark3d/gfx/Gltf.java \
+            verify/EngineCheck.java verify/GltfCheck.java
 
       - name: Run engine checks
-        run: java -ea -cp out EngineCheck
+        run: |
+          java -ea -cp out EngineCheck
+          java -ea -cp out GltfCheck app/src/main/assets/models
 
   build:
     runs-on: ubuntu-latest

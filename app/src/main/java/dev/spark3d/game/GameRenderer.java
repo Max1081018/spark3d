@@ -9,13 +9,19 @@ import javax.microedition.khronos.opengles.GL10;
 
 import dev.spark3d.R;
 import dev.spark3d.engine.Clock;
+import dev.spark3d.engine.Mat4;
 import dev.spark3d.engine.Touch;
 import dev.spark3d.gfx.Camera;
 import dev.spark3d.gfx.Font;
 import dev.spark3d.gfx.Gl;
+import dev.spark3d.gfx.Gltf;
+import dev.spark3d.gfx.GltfLoader;
+import dev.spark3d.gfx.GltfMesh;
 import dev.spark3d.gfx.InstanceBatch;
 import dev.spark3d.gfx.Mesh;
+import dev.spark3d.gfx.ModelBatch;
 import dev.spark3d.gfx.Shader;
+import dev.spark3d.gfx.Skeletal;
 import dev.spark3d.gfx.Sky;
 import dev.spark3d.gfx.Terrain;
 import dev.spark3d.gfx.UiBatch;
@@ -65,6 +71,19 @@ public final class GameRenderer implements GLSurfaceView.Renderer {
     private InstanceBatch shards;
     private InstanceBatch player;
 
+    private Shader modelShader;
+    private Shader skinShader;
+    private Gltf foxGltf;
+    private Gltf robotGltf;
+    private Gltf cesiumGltf;
+    private Gltf riggedGltf;
+    private Gltf duckGltf;
+    private final java.util.List<ModelBatch> duckBatches = new java.util.ArrayList<>();
+    private Characters characters;
+
+    /** Real animated characters currently in the world. */
+    private int characterCount;
+
     private int width = 1;
     private int height = 1;
     private float aspect = 1f;
@@ -75,6 +94,7 @@ public final class GameRenderer implements GLSurfaceView.Renderer {
 
     private int drawCalls;
     private int triangles;
+    private int modelInstancesDrawn;
 
     private final float[] sunDir = new float[3];
 
@@ -116,6 +136,12 @@ public final class GameRenderer implements GLSurfaceView.Renderer {
         uiShader = new Shader("ui",
                 Gl.readRaw(context, R.raw.ui_vert),
                 Gl.readRaw(context, R.raw.ui_frag));
+        modelShader = new Shader("model",
+                Gl.readRaw(context, R.raw.model_vert),
+                Gl.readRaw(context, R.raw.model_frag));
+        skinShader = new Shader("skin",
+                Gl.readRaw(context, R.raw.skin_vert),
+                Gl.readRaw(context, R.raw.skin_frag));
 
         sky = new Sky(context);
         sky.topR = Tuning.SKY_TOP_R;
@@ -170,6 +196,40 @@ public final class GameRenderer implements GLSurfaceView.Renderer {
         crystalDraw = Tuning.CRYSTAL_START_DRAW;
         qualityCooldown = 0f;
 
+        // --- real models: animated characters and the static duck flock
+        foxGltf = GltfLoader.load(context, "models/Fox.glb");
+        robotGltf = GltfLoader.load(context, "models/RobotExpressive.glb");
+        cesiumGltf = GltfLoader.load(context, "models/CesiumMan.glb");
+        riggedGltf = GltfLoader.load(context, "models/RiggedFigure.glb");
+        duckGltf = GltfLoader.load(context, "models/Duck.glb");
+
+        for (Gltf.Primitive prim : duckGltf.bakeStatic()) {
+            int tex = -1;
+            if (duckGltf.materials.get(prim.material) != null
+                    && duckGltf.materials.get(prim.material).baseColorImage >= 0
+                    && duckGltf.materials.get(prim.material).baseColorImage < duckGltf.images.size()) {
+                tex = GltfMesh.texture(duckGltf.images.get(duckGltf.materials.get(prim.material).baseColorImage));
+            }
+            ModelBatch batch = new ModelBatch(
+                    GltfMesh.staticMesh(duckGltf, prim, prim.material, tex),
+                    Tuning.MODEL_CAPACITY);
+            for (int i = 0; i < Tuning.DUCKS; i++) {
+                float a = (float) (i * 2.399f);
+                float r = 40f + (float) Math.cos(a) * 90f;
+                float z = 40f + (float) Math.sin(a) * 90f;
+                batch.add(
+                        r, -1.5f, z,
+                        0f, 0f, 0f, 1f,
+                        0.5f, 0.5f, 0.5f,
+                        Tuning.DUCK_R, Tuning.DUCK_G, Tuning.DUCK_B, 0f,
+                        i * 0.31f, 0f, 0f, (float) (i % 5) * 0.25f);
+            }
+            batch.flush();
+            duckBatches.add(batch);
+        }
+
+        characters = new Characters(foxGltf, 0, robotGltf, 0, cesiumGltf, 0, riggedGltf, 0);
+        characterCount = characters.count();
         sunDir[0] = Tuning.SUN_X;
         sunDir[1] = Tuning.SUN_Y;
         sunDir[2] = Tuning.SUN_Z;
@@ -199,6 +259,8 @@ public final class GameRenderer implements GLSurfaceView.Renderer {
         camera.update(aspect, dt);
 
         adaptQuality(dt);
+
+        updateCharacters(dt);
 
         drawCalls = 0;
         triangles = 0;
@@ -278,11 +340,52 @@ public final class GameRenderer implements GLSurfaceView.Renderer {
         player.draw();
         drawCalls++;
         triangles += player.indexCount() / 3 * player.count;
+
+        // 5. Real models: the duck flock, then the animated characters.
+        drawModels();
+    }
+
+    /**
+     * The real-model content: a static flock of baked ducks in one instanced
+     * batch, plus a handful of skinned characters that play real clips.
+     */
+    private void drawModels() {
+        float[] base = {1f, 1f, 1f, 1f};
+        modelInstancesDrawn = 0;
+        for (ModelBatch b : duckBatches) {
+            if (b.count <= 0) continue;
+            modelInstancesDrawn += b.count;
+            b.draw(modelShader, camera.viewProj, camera.ex, camera.ey, camera.ez,
+                    sunDir[0], sunDir[1], sunDir[2],
+                    Tuning.SKY_BOT_R, Tuning.SKY_BOT_G, Tuning.SKY_BOT_B,
+                    Tuning.FOG_START, Tuning.FOG_END, clock.time,
+                    base[0], base[1], base[2], base[3]);
+            triangles += b.indexCount() / 3 * b.count;
+        }
+
+        for (Characters.Character c : characters.list) {
+            float gy = terrain.heightAt(c.x, c.z) + 0.85f;
+            float[] mm = Mat4.create();
+            Mat4.fromTRS(mm, c.x, gy, c.z, 0f, 0f, 0f, 1f, 1f, 1f, 1f);
+            float[] q = new float[4];
+            Mat4.quatAxisAngle(q, 0f, 1f, 0f, c.yaw);
+            Mat4.fromTRS(mm, c.x, gy, c.z, q[0], q[1], q[2], q[3], 1f, 1f, 1f);
+            c.skeletal.draw(skinShader, camera, mm, clock.time,
+                    sunDir[0], sunDir[1], sunDir[2],
+                    Tuning.SKY_BOT_R, Tuning.SKY_BOT_G, Tuning.SKY_BOT_B,
+                    Tuning.FOG_START, Tuning.FOG_END,
+                    0.85f, 0.85f, 0.85f, 1f);
+        }
+    }
+
+    private void updateCharacters(float dt) {
+        characters.update(dt);
     }
 
     private void drawHud() {
         hud.setViewport(width, height, Touch.density());
-        hud.draw(ui, font, clock, world, camera, touch, crystalDraw, drawCalls, triangles);
+        hud.draw(ui, font, clock, world, camera, touch, crystalDraw, modelInstancesDrawn,
+                characters.count(), drawCalls, triangles);
         drawCalls++;
     }
 
@@ -322,6 +425,16 @@ public final class GameRenderer implements GLSurfaceView.Renderer {
         if (sceneShader != null) sceneShader.dispose();
         if (terrainShader != null) terrainShader.dispose();
         if (uiShader != null) uiShader.dispose();
+        if (modelShader != null) modelShader.dispose();
+        if (skinShader != null) skinShader.dispose();
+        for (ModelBatch b : duckBatches) b.dispose();
+        duckBatches.clear();
+        foxGltf = null;
+        robotGltf = null;
+        cesiumGltf = null;
+        riggedGltf = null;
+        duckGltf = null;
+        characters = null;
         crystals = null;
         spires = null;
         shards = null;

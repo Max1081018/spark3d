@@ -56,6 +56,29 @@ public final class Gl {
         return t[0];
     }
 
+    /** A 1x1 white texture used when a material has no texture of its own. */
+    private static int whiteTex = -1;
+
+    public static int whiteTexture() {
+        if (whiteTex >= 0) return whiteTex;
+        int t = genTexture();
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, t);
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MIN_FILTER, GLES30.GL_LINEAR);
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_LINEAR);
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_CLAMP_TO_EDGE);
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_CLAMP_TO_EDGE);
+        byte[] px = new byte[4];
+        px[0] = (byte) 255; px[1] = (byte) 255; px[2] = (byte) 255; px[3] = (byte) 255;
+        java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocateDirect(4);
+        bb.order(java.nio.ByteOrder.nativeOrder());
+        bb.put(px);
+        bb.position(0);
+        GLES30.glTexImage2D(GLES30.GL_TEXTURE_2D, 0, GLES30.GL_RGBA, 1, 1, 0,
+                GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, bb);
+        whiteTex = t;
+        return t;
+    }
+
     public static void bindTexture(int unit, int texture) {
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0 + unit);
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, texture);

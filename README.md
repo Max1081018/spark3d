@@ -14,6 +14,13 @@ the middle; the amber shards scattered around are collectibles (+10 each, they
 respawn at least 90 units away). Rock spires block movement. The camera is a
 third-person orbit that follows with exponential smoothing.
 
+On top of the field: a **flock of real duck models** (~900 instances of one
+glTF duck with a real PNG texture, instanced), and **four real animated
+characters** — Fox (3 clips), RobotExpressive (14 clips), CesiumMan (1 clip) and
+RiggedFigure (1 clip) — skinned through joint palettes and playing real
+glTF animation clips. The engine parses glTF/GLB binary, bakes static models
+into instanced vertex data, and plays skeletal animation on the GPU.
+
 ## Controls
 
 | Input | Action |
@@ -42,6 +49,21 @@ cover the scene.
    atlas with a reserved white cell so text and solid quads share a texture.
 6. **Culling, baked shade, derivative-based terrain grid, no post-processing.**
 
+## Models and animation
+
+The "twelve thousand models" claim became real with actual 3D content:
+
+- **Real static models** — `app/src/main/assets/models/Duck.glb` baked into an
+  instanced mesh (one draw call for the flock).
+- **Real skinned characters** — Fox, RobotExpressive, CesiumMan, RiggedFigure,
+  each with glTF animations (translation/rotation/scale samplers, LINEAR or
+  STEP interpolation, quaternion slerp).
+
+The renderer draws the characters through a joint palette: per frame the
+skeleton is advanced and a flat array of joint world matrices is uploaded as a
+uniform array (`uJoints[64]`) that the vertex shader uses to skin each vertex
+through its four joints.
+
 Every number is in `game/Tuning.java`.
 
 ## Layout
@@ -49,11 +71,13 @@ Every number is in `game/Tuning.java`.
 ```
 app/src/main/java/dev/spark3d/
   engine/   Mat4, Clock, Noise, Touch, SpatialHash3, SafeArea  (no Android imports)
-  gfx/      Gl, Shader, Mesh, InstanceBatch, Camera, Font, UiBatch, Terrain, Sky
-  game/     Tuning, World, Hud, GameRenderer
+  gfx/      Gl, Shader, Mesh, InstanceBatch, Camera, Font, UiBatch, Terrain, Sky,
+            Gltf, GltfLoader, GltfMesh, ModelBatch, Skeletal, Sky
+  game/     Tuning, World, Hud, GameRenderer, Characters
   GameView.java, MainActivity.java
-app/src/main/res/raw/*.glsl      the eight shaders, loaded at runtime
+app/src/main/res/raw/*.glsl      the twelve shaders, loaded at runtime
 verify/EngineCheck.java          JVM checks for the platform-independent maths
+verify/GltfCheck.java            JVM checks for the glTF/GLB parser + animation
 ```
 
 ## Build
@@ -64,14 +88,19 @@ push to `main`; pushing a `v*` tag also attaches the APK to a release.
 Locally, without an Android SDK, two checks run:
 
 ```sh
-# eight GLSL shaders
+# twelve GLSL shaders
 for f in app/src/main/res/raw/*.glsl; do
-  case "$f" in *_vert.glsl) glslangValidator -S vert "$f";; *) glslangValidator -S frag "$f";; esac
+  case "$f" in *_vert.glsl) glslangValidator -S vert "$f";; *_frag.glsl) glslangValidator -S frag "$f";; esac
 done
 
 # engine maths, 68 assertions
 javac -encoding UTF-8 -d out $(find app/src/main/java/dev/spark3d/engine -name '*.java') verify/EngineCheck.java
 java -ea -cp out EngineCheck
+
+# glTF parser + animation maths, 17872 assertions
+javac -encoding UTF-8 -d out $(find app/src/main/java/dev/spark3d/engine -name '*.java') \
+  app/src/main/java/dev/spark3d/gfx/Gltf.java verify/EngineCheck.java verify/GltfCheck.java
+java -ea -cp out GltfCheck app/src/main/assets/models
 ```
 
 To build an APK yourself you need JDK 17 + Android SDK 34:
@@ -85,10 +114,27 @@ directly. A real signing config must replace this before publishing.
 
 ## Verified
 
-- All eight shaders compile with `glslangValidator`.
+- All twelve shaders compile with `glslangValidator`.
 - All Java sources compile against the real `android.jar` (platform 34), `-Xlint:all`.
 - 68/68 engine checks pass (matrix maths, quaternions, noise determinism, touch
   sticks, multi-pointer handling, spatial hash, clock clamping).
+- 17,872 checks pass over the five real shipped models: glTF chunk/accessor
+  parsing, skin inverse-bind matrices, animation sampling (LINEAR + STEP, slerp),
+  bakeStatic normals and bounds.
+
+## Models
+
+Real content ships in `app/src/main/assets/models/`:
+
+- `Duck.glb` — static prop, the flock.
+- `Fox.glb` — 24-joint skeleton, Survey / Walk / Run.
+- `RobotExpressive.glb` — 43-joint skeleton, 14 clips.
+- `CesiumMan.glb` — 19-joint skeleton, Take off / land.
+- `RiggedFigure.glb` — 19-joint skeleton, dance clip.
+
+Attribution and license obligations live in [CREDITS.md](CREDITS.md). The
+loader only accepts binary GLB with triangle primitives and LINEAR/STEP
+animation; anything else fails loudly at load.
 
 ## Not verified here
 

@@ -45,6 +45,8 @@ public final class Hud {
             Camera camera,
             Touch touch,
             int drawnCrystals,
+            int drawnModels,
+            int animatedCharacters,
             int drawCalls,
             int triangles) {
 
@@ -84,6 +86,9 @@ public final class Hud {
                         + k(triangles) + " tris",
                 x, y, small, Tuning.DIM_R, Tuning.DIM_G, Tuning.DIM_B, 1f);
 
+        y += line;
+        ui.text(font, drawnModels + " static models   " + animatedCharacters + " animated",
+                x, y, small, Tuning.INK_R, Tuning.INK_G, Tuning.INK_B, 0.92f);
         y += line;
         ui.text(font, "world " + k(triangles) + "   quality " + pct(clock.smoothDelta),
                 x, y, small, Tuning.DIM_R, Tuning.DIM_G, Tuning.DIM_B, 0.75f);

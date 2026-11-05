@@ -88,6 +88,11 @@ public final class Shader {
         GLES30.glUniformMatrix4fv(loc(u), 1, false, m, 0);
     }
 
+    /** Upload a uniform array of matrices, column-major, count entries. */
+    public void setMat4Array(String u, int count, float[] mats) {
+        GLES30.glUniformMatrix4fv(loc(u), count, false, mats, 64);
+    }
+
     public void set1i(String u, int v) {
         GLES30.glUniform1i(loc(u), v);
     }

@@ -19,6 +19,12 @@ public final class Tuning {
     public static final int SPIRES = 700;
     public static final int SHARDS = 240;
 
+    /** Real-model instance capacity for the static baked batches. */
+    public static final int MODEL_CAPACITY = 1500;
+    /** How many real ducks are in the flock. */
+    public static final int DUCKS = 900;
+    public static final float DUCK_R = 0.85f, DUCK_G = 0.55f, DUCK_B = 0.30f;
+
     public static final float FIELD_RADIUS = 300f;
     public static final float SPAWN_CLEAR = 12f;
 
