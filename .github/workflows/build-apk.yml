@@ -44,11 +44,17 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install platform and build tools
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" > /dev/null
+      - name: Ensure Android platform 34
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms" || true
+          ls "$ANDROID_HOME/build-tools" || true
+          if [ ! -d "$ANDROID_HOME/platforms/android-34" ]; then
+            SDKMANAGER="$(find "$ANDROID_HOME" -name sdkmanager -type f | head -1)"
+            echo "using $SDKMANAGER"
+            yes | "$SDKMANAGER" --licenses > /dev/null || true
+            "$SDKMANAGER" "platforms;android-34" "build-tools;34.0.0"
+          fi
 
       - name: Gradle
         uses: gradle/actions/setup-gradle@v4
