@@ -132,6 +132,8 @@ public final class GameRenderer implements GLSurfaceView.Renderer {
         camera.distance = Tuning.CAM_DISTANCE;
         camera.pitch = Tuning.CAM_PITCH;
         camera.fovY = (float) Math.toRadians(Tuning.FOV_DEGREES);
+        camera.near = 0.4f;
+        camera.far = 520f;
         world.snapCamera(camera);
 
         font = new Font();

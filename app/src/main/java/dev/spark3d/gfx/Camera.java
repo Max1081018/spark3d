@@ -30,8 +30,10 @@ public final class Camera {
     public float pitch = 0.38f;
     public float distance = 11.5f;
     public float fovY = (float) Math.toRadians(58);
-    public float near = 0.15f;
-    public float far = 620f;
+    // A 16-bit depth buffer is what most phone configs give us, so keep the
+    // near/far ratio modest: 0.4..520 resolves far better than 0.15..620.
+    public float near = 0.4f;
+    public float far = 520f;
     /** Look sensitivity, radians per second at full stick deflection. */
     public float lookSpeed = 2.6f;
     /** Terrain height under the focus point; used to keep the eye above ground. */

@@ -5,8 +5,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.Window;
-import android.view.WindowInsets;
-import android.view.WindowInsetsController;
 import android.view.WindowManager;
 
 /**
@@ -17,6 +15,9 @@ import android.view.WindowManager;
  * and hand lifecycle events to the {@code GLSurfaceView} so the EGL context is
  * released while the app is in the background instead of being killed by the
  * driver.
+ *
+ * <p>Anything newer than the minimum SDK lives in its own nested class. On API
+ * 24 the verifier must not have to resolve {@code WindowInsetsController}.
  */
 public final class MainActivity extends Activity {
 
@@ -29,10 +30,7 @@ public final class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         if (Build.VERSION.SDK_INT >= 28) {
-            WindowManager.LayoutParams lp = getWindow().getAttributes();
-            lp.layoutInDisplayCutoutMode =
-                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-            getWindow().setAttributes(lp);
+            Cutout.enable(getWindow());
         }
 
         view = new GameView(this);
@@ -43,13 +41,7 @@ public final class MainActivity extends Activity {
     private void hideSystemUi() {
         Window window = getWindow();
         if (Build.VERSION.SDK_INT >= 30) {
-            window.setDecorFitsSystemWindows(false);
-            WindowInsetsController c = window.getInsetsController();
-            if (c != null) {
-                c.hide(WindowInsets.Type.systemBars());
-                c.setSystemBarsBehavior(
-                        WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-            }
+            Immersive30.hide(window);
         } else {
             window.getDecorView().setSystemUiVisibility(
                     View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -58,6 +50,29 @@ public final class MainActivity extends Activity {
                             | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                             | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                             | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        }
+    }
+
+    /** API 30+: edge-to-edge and transient system bars. */
+    private static final class Immersive30 {
+        static void hide(Window window) {
+            window.setDecorFitsSystemWindows(false);
+            android.view.WindowInsetsController c = window.getInsetsController();
+            if (c != null) {
+                c.hide(android.view.WindowInsets.Type.systemBars());
+                c.setSystemBarsBehavior(
+                        android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            }
+        }
+    }
+
+    /** API 28+: draw into the cutout area; the HUD compensates via insets. */
+    private static final class Cutout {
+        static void enable(Window window) {
+            WindowManager.LayoutParams lp = window.getAttributes();
+            lp.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            window.setAttributes(lp);
         }
     }
 
