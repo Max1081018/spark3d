@@ -64,6 +64,13 @@ jobs:
       - name: Assemble
         run: gradle assembleDebug assembleRelease --stacktrace --no-daemon
 
+      - name: Inspect APK manifest
+        run: |
+          AAPT2="$(find "$ANDROID_HOME/build-tools" -name aapt2 -type f | sort | tail -1)"
+          echo "using $AAPT2"
+          "$AAPT2" dump badging app/build/outputs/apk/debug/app-debug.apk \
+            | grep -E "^package:|sdkVersion|targetSdkVersion|uses-feature|launchable-activity|native-code" || true
+
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
